@@ -1,13 +1,12 @@
+from product_recommendation import ProductRecommend_Classifier
 from hashtag_servicer import FeatureExtractor
-from sklearn.dummy import DummyClassifier
+
 from pydantic import BaseModel
 from fastapi import FastAPI
 from tqdm import tqdm
 
 import polars as pl
-import numpy as np
 import pickle
-import json
 
 MODEL_PATH = "./export/exported_dummy_classifier.pkl"
 HASHTAG_TRAIN_DATA = "./data/tags.txt"
@@ -26,6 +25,7 @@ def __preprocess_data(data):
 
 app = FastAPI()
 extractor = FeatureExtractor()
+recommender = ProductRecommend_Classifier()
 
 class RecommendationData(BaseModel):
     """Data columns
@@ -40,7 +40,7 @@ class RecommendationData(BaseModel):
     prices: int
     VAP: int
     pet_type: int
-    rating: int
+    # rating: int
     re_buy: int
 
 class HashtagSimilarityData(BaseModel):
@@ -53,15 +53,7 @@ class HashtagSimilarityData(BaseModel):
 def product_recommendation_prediction(data: RecommendationData):
     """Predicts the sales based on the data provided
     """
-    data = pl.DataFrame({
-        "sales": [data.sales],
-        "prices": [data.prices],
-        "VAP": [data.VAP],
-        "pet_type": [data.pet_type],
-        "rating": [data.rating],
-        "re_buy": [data.re_buy]
-    })
-    return {"product_recommendation": model.predict(data).to_numpy()[0]}
+    return {"prediction": recommender.predict(data)}
 
 @app.post("/hashtag-similarity")
 def hashtag_recommendation_prediction(data: HashtagSimilarityData):
