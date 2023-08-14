@@ -1,5 +1,6 @@
 from product_recommendation import ProductRecommend_Classifier
 from hashtag_servicer import FeatureExtractor
+from budget_analysis import BudgetAnaylsis
 
 from pydantic import BaseModel
 from fastapi import FastAPI
@@ -26,6 +27,7 @@ def __preprocess_data(data):
 app = FastAPI()
 extractor = FeatureExtractor()
 recommender = ProductRecommend_Classifier()
+budget_analysis = BudgetAnaylsis()
 
 class RecommendationData(BaseModel):
     """Data columns
@@ -49,11 +51,33 @@ class HashtagSimilarityData(BaseModel):
     """
     hashtag: list
 
+class BudgeData(BaseModel):
+    """Data columns
+    date(str): Date, Categorical
+    category(str): Category, Categorical
+    amount(uint64): Amount, Continuous
+    """
+    date: list
+    category: list
+    amount: list
+
 @app.post("/product-recommendation")
 def product_recommendation_prediction(data: RecommendationData):
     """Predicts the sales based on the data provided
     """
     return {"prediction": recommender.predict(data)}
+
+@app.post("/budget-analysis")
+def budget_analysis_prediction(data: BudgeData):
+    """Predicts the sales based on the data provided
+    """
+    data = pl.DataFrame({
+        "date": data.date,
+        "category": data.category,
+        "amount": data.amount
+    })
+
+    return {budget_analysis.predict(data)}
 
 @app.post("/hashtag-similarity")
 def hashtag_recommendation_prediction(data: HashtagSimilarityData):
@@ -79,6 +103,7 @@ def hashtag_recommendation_prediction(data: HashtagSimilarityData):
 def index():
     return {
         "Product Recommendation": "/product-recommendation", 
-        "Hashtag Similarity": "/hashtag-similarity"
+        "Hashtag Similarity": "/hashtag-similarity",
+        "Budget Analysis": "/budget-analysis"
     }
 # uvicorn main:app --reload
