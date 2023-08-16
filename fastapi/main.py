@@ -10,7 +10,9 @@ from typing import Dict, List
 
 import polars as pl
 import logging
+import mariadb
 import pickle
+import sys
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -18,6 +20,25 @@ MODEL_PATH = "./export/exported_dummy_classifier.pkl"
 HASHTAG_TRAIN_DATA = "./data/tags.txt"
 with open(MODEL_PATH, "rb") as f:   model = pickle.load(f)
 with open(HASHTAG_TRAIN_DATA, "r") as f:    hashtag_data = f.readlines()
+
+# MariaDB connection
+DB_USER = "ai_user"
+DB_PASSWORD = "p@ssw0rd"
+DB_HOST = "db-i1ue7-kr.vpc-pub-cdb.ntruss.com"
+DB_PORT = 3306
+DB_DATABASE = "amicadb"
+
+try:
+    connector = mariadb.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT,
+        database=DB_DATABASE)
+    cursor = connector.cursor()
+except mariadb.Error as e:
+    logging.error(f"Error connecting to MariaDB Platform: {e}")
+    sys.exit(1)
 
 def __preprocess_data(data):
     for idx, word in enumerate(data):
@@ -29,25 +50,19 @@ def __preprocess_data(data):
         data[idx] = word_temp
     return data
 
+def __mariadb_query(table_name):
+    query = f"SELECT * FROM {table_name}"
+    cursor.execute(query)
+    data = cursor.fetchall()
+
+    data = pl.DataFrame(data)
+
+    return data
+
 app = FastAPI()
 extractor = FeatureExtractor()
 recommender = ProductRecommend_Classifier()
 budget_analysis = BudgetAnaylsis()
-
-class RecommendationData(BaseModel):
-    """Data columns
-    sales(uint64): Sales, Continuous
-    prices(uint64): Prices, Continuous
-    VAP(uint64): VAP, Binary Categorical
-    pet_type(uint64): Pet type, Categorical
-    rating(uint64): Rating, Categorical 
-    re_buy(uint64): Re-buy, Binary Categorical
-    """
-    sales: int
-    prices: int
-    VAP: int
-    pet_type: int
-    re_buy: int
 
 class HashtagSimilarityData(BaseModel):
     """Data columns
@@ -71,17 +86,11 @@ def product_recommendation_prediction(request: Request):
     """
     logging.info(f"Product recommendation Requested!")
 
-    data = request.query_params
-    data = pl.DataFrame({
-        "sales": [data["sales"]],
-        "prices": [data["prices"]],
-        "VAP": [data["VAP"]],
-        "pet_type": [data["pet_type"]],
-        # "rating": [data["rating"]],
-        "re_buy": [data["re_buy"]]
-    })
+    user_info = request.query_params
+    data = __mariadb_query("product")
 
-    return {"prediction": recommender.predict(data)}
+    prediction = recommender.predict(data, user_info)
+    return {"prediction": prediction}
 
 @app.router.get("/budget-analysis")
 def budget_analysis_prediction(request: Request):
@@ -134,12 +143,7 @@ def index():
         "Product Recommendation": {
             "url": "/product-recommendation",
             "data": {
-                "sales": "Sales, Integer(Cotinuous)",
-                "prices": "Prices, Integer(Cotinuous)",
-                "VAP": "VAP, Integer(0 or 1)",
-                "pet_type": "Pet type, Integer([0] -> bird, [1] -> cat, [2] -> dog, [3] -> fish, [4] -> hamster, [5] -> rabbit)",
-                "rating": "Rating, Integer(0 ~ 10)",
-                "re_buy": "Re-buy, Integer(0 or 1)"
+                "WIP": "Work in progress"
             }
         },
 
@@ -157,7 +161,7 @@ def index():
                 "category": "Category, String",
                 "amount": "Amount, Integer(Continuous)"
             }
-        }
+        },
     }
 
 # uvicorn main:app --reload --port 8000 --host 127.0.0.1
