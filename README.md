@@ -1,4 +1,4 @@
-# Recommendation Algorithm using Machine Learning Method.
+# Recommendation Algorithm using Machine Learning Method
 
 In this repository, we are developing a recommendation algorithm using the Machine Learning approach. Currently, we are in the phase of comparing various datasets, constructing models, and establishing specificity. We kindly ask for your reference in this regard.
 

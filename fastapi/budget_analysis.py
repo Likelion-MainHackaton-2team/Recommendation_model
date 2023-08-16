@@ -19,10 +19,12 @@ class BudgetAnaylsis:
         }
 
     def __spend_money_total(self, data):
-        return data['amount'].sum()
+        convert_to_list = data['amount']
+        convert_to_list = [print(i, "\n") for i in convert_to_list]
+        return np.sum(convert_to_list)
 
     def __spend_money_by_category(self, data):
-        return data.groupby('category').sum()[['Category', 'amount']]
+        return data.groupby('category').sum()[['category', 'amount']]
 
     def __spend_money_by_month(self, data):
         return data.groupby('month').sum()[['month', 'amount']]

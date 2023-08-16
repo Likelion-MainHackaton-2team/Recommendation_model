@@ -2,12 +2,17 @@ from product_recommendation import ProductRecommend_Classifier
 from hashtag_servicer import FeatureExtractor
 from budget_analysis import BudgetAnaylsis
 
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from fastapi import FastAPI
 from tqdm import tqdm
 
+from typing import Dict, List
+
 import polars as pl
+import logging
 import pickle
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 MODEL_PATH = "./export/exported_dummy_classifier.pkl"
 HASHTAG_TRAIN_DATA = "./data/tags.txt"
@@ -42,7 +47,6 @@ class RecommendationData(BaseModel):
     prices: int
     VAP: int
     pet_type: int
-    # rating: int
     re_buy: int
 
 class HashtagSimilarityData(BaseModel):
@@ -57,30 +61,52 @@ class BudgeData(BaseModel):
     category(str): Category, Categorical
     amount(uint64): Amount, Continuous
     """
-    date: list
+    month: list
     category: list
     amount: list
 
-@app.post("/product-recommendation")
-def product_recommendation_prediction(data: RecommendationData):
+@app.router.get("/product-recommendation")
+def product_recommendation_prediction(request: Request):
     """Predicts the sales based on the data provided
     """
+    logging.info(f"Product recommendation Requested!")
+
+    data = request.query_params
+    data = pl.DataFrame({
+        "sales": [data["sales"]],
+        "prices": [data["prices"]],
+        "VAP": [data["VAP"]],
+        "pet_type": [data["pet_type"]],
+        # "rating": [data["rating"]],
+        "re_buy": [data["re_buy"]]
+    })
+
     return {"prediction": recommender.predict(data)}
 
-@app.post("/budget-analysis")
-def budget_analysis_prediction(data: BudgeData):
+@app.router.get("/budget-analysis")
+def budget_analysis_prediction(request: Request):
     """Predicts the sales based on the data provided
     """
-    data = pl.DataFrame({
-        "date": data.date,
-        "category": data.category,
-        "amount": data.amount
-    })
+    logging.info(f"Budget analysis Requested!")
+    data = request.query_params
+
+    logging.info(f"Received request: {request}")
+    data = {
+        "month": data["month"],
+        "category": data["category"],
+        "amount": data["amount"]
+    }
+
+    prediction = budget_analysis.predict(data)
+    print(prediction)
 
     return {budget_analysis.predict(data)}
 
-@app.post("/hashtag-similarity")
+@app.router.get("/hashtag-similarity")
 def hashtag_recommendation_prediction(data: HashtagSimilarityData):
+    """Predicts the sales based on the data provided
+    """
+    logging.info(f"Hashtag similarity Requested!")
     data = data.hashtag
     global hashtag_data
 
@@ -89,21 +115,48 @@ def hashtag_recommendation_prediction(data: HashtagSimilarityData):
 
     bert_sim_list = []
     for text in tqdm(hashtag_data):
+        sim_list = []
         for text_target in data:
-            bert_sim_list.append(extractor.get_bert_similarty(text, text_target))
+            sim_list.append(extractor.get_bert_similarty(text, text_target))
+        bert_sim_list.append(sum(sim_list) / len(sim_list))
     
     sim_df = pl.DataFrame({
         "hashtag": hashtag_data,
         "similarity": bert_sim_list
     })
-    sim_df = sim_df.sort(by="similarity", descending=True).to_numpy()
+    sim_df = sim_df.sort(by="similarity", descending=True).to_numpy()[:8]
     return {"hashtag_recommendation": sim_df}
 
 @app.get("/")
 def index():
+    logging.info(f"Index Requested!")
     return {
-        "Product Recommendation": "/product-recommendation", 
-        "Hashtag Similarity": "/hashtag-similarity",
-        "Budget Analysis": "/budget-analysis"
+        "Product Recommendation": {
+            "url": "/product-recommendation",
+            "data": {
+                "sales": "Sales, Integer(Cotinuous)",
+                "prices": "Prices, Integer(Cotinuous)",
+                "VAP": "VAP, Integer(0 or 1)",
+                "pet_type": "Pet type, Integer([0] -> bird, [1] -> cat, [2] -> dog, [3] -> fish, [4] -> hamster, [5] -> rabbit)",
+                "rating": "Rating, Integer(0 ~ 10)",
+                "re_buy": "Re-buy, Integer(0 or 1)"
+            }
+        },
+
+        "Hashtag Similarity": {
+            "url": "/hashtag-similarity",
+            "data": {
+                "hashtag": "Hashtag, List[String]"
+            }
+        },
+        
+        "Budget Analysis": {
+            "url": "/budget-analysis",
+            "data": {
+                "date": "Date, String",
+                "category": "Category, String",
+                "amount": "Amount, Integer(Continuous)"
+            }
+        }
     }
 # uvicorn main:app --reload

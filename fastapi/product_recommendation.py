@@ -1,7 +1,10 @@
 from sklearn.dummy import DummyClassifier
 
 import polars as pl
+import logging
 import pickle
+
+logging.basicConfig(level=logging.INFO)
 
 DUMMY_MODEL_PATH = "./export/exported_dummy_classifier.pkl"
 with open(DUMMY_MODEL_PATH, "rb") as f:   model = pickle.load(f)
@@ -11,13 +14,7 @@ class ProductRecommend_Classifier:
         self.classifier = model
 
     def predict(self, data):
-        data = pl.DataFrame({
-            "sales": [data.sales],
-            "prices": [data.prices],
-            "VAP": [data.VAP],
-            "pet_type": [data.pet_type],
-            # "rating": [data.rating],
-            "re_buy": [data.re_buy]
-        })
-
-        return self.classifier.predict(data).to_list()[0]
+        prediction = str(self.classifier.predict(data)[0])
+        logging.info(f"[Product_Recommendation] Prediction: {prediction}")
+        
+        return prediction
