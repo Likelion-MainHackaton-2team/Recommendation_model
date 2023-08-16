@@ -10,4 +10,8 @@ The datasets being used are sourced from [Pet Store Records 2020](https://www.ka
 
 We are using autoML to discover the best model. Once the model is established, we will utilize [SHAP](https://shap.readthedocs.io/en/latest/) to identify the most influential features of the dataset.
 
-본 Recommendation AI 모델은 우리가 흔히 알고 있는 AI 뿐만 아니라 원초적으로 사용되는 KNN, Clustering 과 같은 Machine Learinng의 기초 영역부터 LLM 모델까지 여러 모델이 사용됩니다 (단, 하이브리드 모델이나 퓨전 모델이 아님을 명시합니다.). 그렇기 때문에 여러 API 호출과 Domain이 존재합니다. 각 인공지능이 하는 역할과 요청하고자 하는 내용이 다르기 때문에 Data Schema도 다릅니다. FastAPI Server 로드 후, docs를 참고하시기 바랍니다.
+This Recommendation AI model encompasses a wide spectrum of machine learning approaches, ranging from foundational techniques like K-Nearest Neighbors (KNN) and Clustering to more advanced methods such as Large Language Model (LLM), while excluding hybrid or fusion models. This diverse set of models covers various domains and involves multiple API calls.
+
+Due to the distinct roles and desired outputs of each AI, the data schema varies accordingly. Please consult the FastAPI server's documentation after loading it for further guidance.
+
+If you have any more questions or need clarification, feel free to ask.
