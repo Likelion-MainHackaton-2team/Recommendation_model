@@ -159,4 +159,5 @@ def index():
             }
         }
     }
-# uvicorn main:app --reload
+
+# uvicorn main:app --reload --port 8000 --host 127.0.0.1
