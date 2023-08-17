@@ -6,20 +6,31 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from tqdm import tqdm
 
-from typing import Dict, List
-
 import polars as pl
 import logging
 import mariadb
 import pickle
+import json
 import sys
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 MODEL_PATH = "./export/exported_dummy_classifier.pkl"
 HASHTAG_TRAIN_DATA = "./data/tags.txt"
+HASHTAG_TRAIN_DATA_MAP = "./data/tags_map.json"
 with open(MODEL_PATH, "rb") as f:   model = pickle.load(f)
 with open(HASHTAG_TRAIN_DATA, "r") as f:    hashtag_data = f.readlines()
+with open(HASHTAG_TRAIN_DATA_MAP, "r") as f:    
+    hashtag_map = json.load(f)
+
+hashtag_map_dict = {}
+for i in range(len(hashtag_data)): 
+    value = hashtag_data[i].replace("\n", "")
+    hashtag_map_dict[str(i)] = value
+
+reverse_hashtag_map_dict = {}
+for key, value in hashtag_map_dict.items():
+    reverse_hashtag_map_dict[value] = key
 
 # MariaDB connection
 DB_USER = "ai_user"
@@ -41,6 +52,15 @@ except mariadb.Error as e:
     sys.exit(1)
 
 def __preprocess_data(data):
+    # Input data will be string "{1, 10, 23}"
+    if type(data) == str:
+        data = data.replace("{", "")
+        data = data.replace("}", "")
+        data = data.replace(" ", "")
+        data = data.split(",")
+
+        data = [hashtag_map_dict[i] for i in data]
+
     for idx, word in enumerate(data):
         word_temp = str()
         word_temp = word.replace("\n", "")
@@ -50,6 +70,15 @@ def __preprocess_data(data):
         data[idx] = word_temp
     return data
 
+def __hashtag_reverse_map(data):
+    reverse_hashtag_map_dict = {}
+
+    for key, value in hashtag_map_dict.items():
+        reverse_hashtag_map_dict[value] = key
+        
+    data = [reverse_hashtag_map_dict[i] for i in data]
+    return data
+    
 def __mariadb_query(table_name):
     query = f"SELECT * FROM {table_name}"
     cursor.execute(query)
@@ -64,11 +93,17 @@ extractor = FeatureExtractor()
 recommender = ProductRecommend_Classifier()
 budget_analysis = BudgetAnaylsis()
 
+class ProductRecommendData(BaseModel):
+    """Data columns
+    userPetInfo(list): User pet info, Categorical
+    """
+    userPetType: int
+    userPetSize: int
+
 class HashtagSimilarityData(BaseModel):
     """Data columns
-    hashtag(list): Hashtag, Categorical
-    """
-    hashtag: list
+    hashtag(list): Hashtag, Categorical"""
+    hashtag: str
 
 class BudgeData(BaseModel):
     """Data columns
@@ -80,37 +115,50 @@ class BudgeData(BaseModel):
     category: list
     amount: list
 
+# On-going
 @app.router.get("/product-recommendation")
-def product_recommendation_prediction(request: Request):
+def product_recommendation_prediction(request: ProductRecommendData):
     """Predicts the sales based on the data provided
     """
     logging.info(f"Product recommendation Requested!")
 
-    user_info = request.query_params
+    user_pet_type = request.userPetType
+    user_pet_size = request.userPetSize
     data = __mariadb_query("product")
 
-    prediction = recommender.predict(data, user_info)
+    prediction = recommender.predict(data, user_pet_type, user_pet_size)
     return {"prediction": prediction}
 
+# DB on-going
 @app.router.get("/budget-analysis")
-def budget_analysis_prediction(request: Request):
+def budget_analysis_prediction(request: BudgeData):
     """Predicts the sales based on the data provided
     """
     logging.info(f"Budget analysis Requested!")
-    data = request.query_params
+    data = request.dict()
+    data = pl.DataFrame(data)
 
-    logging.info(f"Received request: {request}")
-    data = {
-        "month": data["month"],
-        "category": data["category"],
-        "amount": data["amount"]
+    logging.info(f"Response by budget analysis classifier")
+    prediction = budget_analysis.predict(data)
+
+    money_total = prediction['money_total']
+    money_by_category = prediction['money_by_category']
+    money_by_month = prediction['money_by_month']
+    money_by_month_category = prediction['money_by_month_category']
+
+    print(money_total)
+    print(money_by_category)
+    print(money_by_month)
+    print(money_by_month_category)
+
+    return {
+        'money_total': money_total,
+        'money_by_category': money_by_category,
+        'money_by_month': money_by_month,
+        'money_by_month_category': money_by_month_category
     }
 
-    prediction = budget_analysis.predict(data)
-    print(prediction)
-
-    return {budget_analysis.predict(data)}
-
+# DONE
 @app.router.get("/hashtag-similarity")
 def hashtag_recommendation_prediction(data: HashtagSimilarityData):
     """Predicts the sales based on the data provided
@@ -128,40 +176,27 @@ def hashtag_recommendation_prediction(data: HashtagSimilarityData):
         for text_target in data:
             sim_list.append(extractor.get_bert_similarty(text, text_target))
         bert_sim_list.append(sum(sim_list) / len(sim_list))
-    
-    sim_df = pl.DataFrame({
-        "hashtag": hashtag_data,
-        "similarity": bert_sim_list
+
+    response = pl.DataFrame({
+        "hashtag": __hashtag_reverse_map(hashtag_data),
+        "similarity": bert_sim_list,
+        "original": hashtag_data,
     })
-    sim_df = sim_df.sort(by="similarity", descending=True).to_numpy()[:8]
-    return {"hashtag_recommendation": sim_df}
+
+    response = response.sort("similarity", descending=True)
+    response = response.to_dict()
+
+    hashtag_list = response["hashtag"].to_list()[:8]
+    original_list = response["original"].to_list()[:8]
+
+    return {
+        "hashtag": hashtag_list,
+        "original": original_list,
+    }
 
 @app.get("/")
 def index():
     logging.info(f"Index Requested!")
-    return {
-        "Product Recommendation": {
-            "url": "/product-recommendation",
-            "data": {
-                "WIP": "Work in progress"
-            }
-        },
-
-        "Hashtag Similarity": {
-            "url": "/hashtag-similarity",
-            "data": {
-                "hashtag": "Hashtag, List[String]"
-            }
-        },
-        
-        "Budget Analysis": {
-            "url": "/budget-analysis",
-            "data": {
-                "date": "Date, String",
-                "category": "Category, String",
-                "amount": "Amount, Integer(Continuous)"
-            }
-        },
-    }
+    return {"message": "Hello World"}
 
 # uvicorn main:app --reload --port 8000 --host 127.0.0.1
