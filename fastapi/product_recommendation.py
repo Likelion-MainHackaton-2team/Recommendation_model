@@ -13,12 +13,10 @@ class ProductRecommend_Classifier:
     def __init__(self):
         self.classifier = model
 
-    def predict(self, data, pet_type, pet_size):
-        data = data.filter(
-            pl.col["pet_type"] == pet_type,
-            pl.col["pet_size"] == pet_size,
-        )
-
+    def predict(self, pet_type, pet_size):
+        data = [[pet_type, pet_size]]
         prediction = self.classifier.predict(data)
-        return prediction
+        print(prediction)
+
+        return prediction.tolist()[0]
     
