@@ -18,10 +18,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 MODEL_PATH = "./export/exported_dummy_classifier.pkl"
 HASHTAG_TRAIN_DATA = "./data/tags.txt"
 HASHTAG_TRAIN_DATA_MAP = "./data/tags_map.json"
+PRODUCT_MAP = "./data/product_map.json"
+
 with open(MODEL_PATH, "rb") as f:   model = pickle.load(f)
 with open(HASHTAG_TRAIN_DATA, "r") as f:    hashtag_data = f.readlines()
-with open(HASHTAG_TRAIN_DATA_MAP, "r") as f:    
-    hashtag_map = json.load(f)
+with open(HASHTAG_TRAIN_DATA_MAP, "r") as f:    hashtag_map = json.load(f)
+with open(PRODUCT_MAP, "r") as f:    product_map = json.load(f)
 
 hashtag_map_dict = {}
 for i in range(len(hashtag_data)): 
@@ -29,8 +31,10 @@ for i in range(len(hashtag_data)):
     hashtag_map_dict[str(i)] = value
 
 reverse_hashtag_map_dict = {}
-for key, value in hashtag_map_dict.items():
-    reverse_hashtag_map_dict[value] = key
+for key, value in hashtag_map_dict.items(): reverse_hashtag_map_dict[value] = key
+
+product_map_dict = {}
+for key, value in product_map.items():    product_map_dict[key] = value
 
 # MariaDB connection
 DB_USER = "ai_user"
@@ -94,9 +98,6 @@ recommender = ProductRecommend_Classifier()
 budget_analysis = BudgetAnaylsis()
 
 class ProductRecommendData(BaseModel):
-    """Data columns
-    userPetInfo(list): User pet info, Categorical
-    """
     userPetType: int
     userPetSize: int
 
@@ -106,16 +107,11 @@ class HashtagSimilarityData(BaseModel):
     hashtag: str
 
 class BudgeData(BaseModel):
-    """Data columns
-    date(str): Date, Categorical
-    category(str): Category, Categorical
-    amount(uint64): Amount, Continuous
-    """
-    month: list
-    category: list
-    amount: list
+    id: str
+    year: int 
+    month: int
 
-# On-going
+# DONE
 @app.router.get("/product-recommendation")
 def product_recommendation_prediction(request: ProductRecommendData):
     """Predicts the sales based on the data provided
@@ -124,10 +120,14 @@ def product_recommendation_prediction(request: ProductRecommendData):
 
     user_pet_type = request.userPetType
     user_pet_size = request.userPetSize
-    data = __mariadb_query("product")
+    
+    prediction = recommender.predict(user_pet_type, user_pet_size)
+    as_string = product_map_dict[str(prediction)]
 
-    prediction = recommender.predict(data, user_pet_type, user_pet_size)
-    return {"prediction": prediction}
+    return {
+        "prediction": prediction,
+        "as_string": as_string,
+    }
 
 # DB on-going
 @app.router.get("/budget-analysis")
@@ -135,28 +135,10 @@ def budget_analysis_prediction(request: BudgeData):
     """Predicts the sales based on the data provided
     """
     logging.info(f"Budget analysis Requested!")
-    data = request.dict()
-    data = pl.DataFrame(data)
+    table_name = "product"
+    data = __mariadb_query(table_name)
 
-    logging.info(f"Response by budget analysis classifier")
-    prediction = budget_analysis.predict(data)
 
-    money_total = prediction['money_total']
-    money_by_category = prediction['money_by_category']
-    money_by_month = prediction['money_by_month']
-    money_by_month_category = prediction['money_by_month_category']
-
-    print(money_total)
-    print(money_by_category)
-    print(money_by_month)
-    print(money_by_month_category)
-
-    return {
-        'money_total': money_total,
-        'money_by_category': money_by_category,
-        'money_by_month': money_by_month,
-        'money_by_month_category': money_by_month_category
-    }
 
 # DONE
 @app.router.get("/hashtag-similarity")
