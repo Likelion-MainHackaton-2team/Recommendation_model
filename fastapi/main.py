@@ -92,14 +92,37 @@ def __mariadb_query(table_name):
 
     return data
 
+def __pre_product_recommend_data(pet_type, pet_size):
+    pet_type_map = {
+        'fish': 0,
+        'cat': 1,
+        'hamster': 2,
+        'dog': 3,
+        'bird': 4,
+        'rabbit' : 5
+    }
+
+    pet_size_map = {
+        'extra_small': 0,
+        'small' : 1,
+        'medium': 2,
+        'large': 3,
+        'extra_large': 4,
+    }
+
+    pet_type = pet_type_map[pet_type]
+    pet_size = pet_size_map[pet_size]
+
+    return pet_type, pet_size
+
 app = FastAPI()
 extractor = FeatureExtractor()
 recommender = ProductRecommend_Classifier()
 budget_analysis = BudgetAnaylsis()
 
 class ProductRecommendData(BaseModel):
-    userPetType: int
-    userPetSize: int
+    species: str
+    userPetSize: str
 
 class HashtagSimilarityData(BaseModel):
     """Data columns
@@ -118,9 +141,10 @@ def product_recommendation_prediction(request: ProductRecommendData):
     """
     logging.info(f"Product recommendation Requested!")
 
-    user_pet_type = request.userPetType
+    user_pet_type = request.species
     user_pet_size = request.userPetSize
-    
+    user_pet_type, user_pet_size = __pre_product_recommend_data(user_pet_type, user_pet_size)
+ 
     prediction = recommender.predict(user_pet_type, user_pet_size)
     as_string = product_map_dict[str(prediction)]
 
@@ -137,8 +161,6 @@ def budget_analysis_prediction(request: BudgeData):
     logging.info(f"Budget analysis Requested!")
     table_name = "product"
     data = __mariadb_query(table_name)
-
-
 
 # DONE
 @app.router.get("/hashtag-similarity")
