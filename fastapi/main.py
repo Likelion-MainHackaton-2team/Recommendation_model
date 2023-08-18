@@ -6,9 +6,9 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from tqdm import tqdm
 
+import mysql.connector as database
 import polars as pl
 import logging
-# import mariadb
 import pickle
 import json
 import sys
@@ -43,17 +43,13 @@ DB_HOST = "db-i1ue7-kr.vpc-pub-cdb.ntruss.com"
 DB_PORT = 3306
 DB_DATABASE = "amicadb"
 
-# try:
-#     connector = mariadb.connect(
-#         user=DB_USER,
-#         password=DB_PASSWORD,
-#         host=DB_HOST,
-#         port=DB_PORT,
-#         database=DB_DATABASE)
-#     cursor = connector.cursor()
-# except mariadb.Error as e:
-#     logging.error(f"Error connecting to MariaDB Platform: {e}")
-#     sys.exit(1)
+connector = database.connect(
+    user=DB_USER,
+    password=DB_PASSWORD,
+    host=DB_HOST,
+    port=DB_PORT,
+    database=DB_DATABASE)
+cursor = connector.cursor()
 
 def __preprocess_data(data):
     # Input data will be string "{1, 10, 23}"
@@ -83,14 +79,14 @@ def __hashtag_reverse_map(data):
     data = [reverse_hashtag_map_dict[i] for i in data]
     return data
     
-# def __mariadb_query(table_name):
-#     query = f"SELECT * FROM {table_name}"
-#     cursor.execute(query)
-#     data = cursor.fetchall()
+def __mariadb_query(table_name):
+    query = f"SELECT * FROM {table_name}"
+    cursor.execute(query)
+    data = cursor.fetchall()
 
-#     data = pl.DataFrame(data)
+    data = pl.DataFrame(data)
 
-#     return data
+    return data
 
 def __pre_product_recommend_data(pet_type, pet_size):
     pet_type_map = {
@@ -153,14 +149,19 @@ def product_recommendation_prediction(request: ProductRecommendData):
         "as_string": as_string,
     }
 
-# DB on-going
-# @app.router.get("/budget-analysis")
-# def budget_analysis_prediction(request: BudgeData):
-#     """Predicts the sales based on the data provided
-#     """
-#     logging.info(f"Budget analysis Requested!")
-#     table_name = "product"
-#     data = __mariadb_query(table_name)
+@app.router.get("/budget-analysis")
+def budget_analysis_prediction(request: BudgeData):
+    """Predicts the sales based on the data provided
+    """
+    logging.info(f"Budget analysis Requested!")
+    table_name = "product"
+    data = __mariadb_query(table_name)
+
+    print(data)
+
+    return {
+        "message": "Not implemented yet!"
+    }
 
 # DONE
 @app.router.get("/hashtag-similarity")
