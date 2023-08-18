@@ -79,8 +79,9 @@ def __hashtag_reverse_map(data):
     data = [reverse_hashtag_map_dict[i] for i in data]
     return data
     
-def __mariadb_query(table_name):
-    query = f"SELECT * FROM {table_name}"
+def __mariadb_query(table_name, query=None):
+    if query is None:   query = f"SELECT * FROM {table_name}"
+
     cursor.execute(query)
     data = cursor.fetchall()
 
@@ -90,12 +91,8 @@ def __mariadb_query(table_name):
 
 def __pre_product_recommend_data(pet_type, pet_size):
     pet_type_map = {
-        'fish': 0,
-        'cat': 1,
-        'hamster': 2,
-        'dog': 3,
-        'bird': 4,
-        'rabbit' : 5
+        'cat': 0,
+        'dog': 1,
     }
 
     pet_size_map = {
@@ -140,7 +137,8 @@ def product_recommendation_prediction(request: ProductRecommendData):
     user_pet_type = request.species
     user_pet_size = request.userPetSize
     user_pet_type, user_pet_size = __pre_product_recommend_data(user_pet_type, user_pet_size)
- 
+    print(user_pet_type, user_pet_size)
+
     prediction = recommender.predict(user_pet_type, user_pet_size)
     as_string = product_map_dict[str(prediction)]
 
@@ -149,15 +147,20 @@ def product_recommendation_prediction(request: ProductRecommendData):
         "as_string": as_string,
     }
 
+# on progress
 @app.router.get("/budget-analysis")
 def budget_analysis_prediction(request: BudgeData):
-    """Predicts the sales based on the data provided
-    """
+    """Requests
+    id(str), year(int), month(int)"""
     logging.info(f"Budget analysis Requested!")
     table_name = "product"
-    data = __mariadb_query(table_name)
+    data = __mariadb_query(
+        table_name,
+        query=f"SELECT * FROM {table_name} WHERE id = {request.id} AND year = {request.year} AND month = {request.month}"
+    )
 
-    print(data)
+    id, year, month = request.id, request.year, request.month
+    data = budget_analysis.predict(data, id, year, month)
 
     return {
         "message": "Not implemented yet!"
